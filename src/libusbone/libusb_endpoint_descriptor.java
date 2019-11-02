@@ -11,6 +11,10 @@ package libusbone;
  * a tool written by <a href="http://ochafik.free.fr/">Olivier Chafik</a> that <a href="http://code.google.com/p/jnaerator/wiki/CreditsAndLicense">uses a few opensource projects.</a>.<br>
  * For help, please visit <a href="http://nativelibs4java.googlecode.com/">NativeLibs4Java</a>, <a href="http://rococoa.dev.java.net/">Rococoa</a>, or <a href="http://jna.dev.java.net/">JNA</a>.
  */
+
+@com.sun.jna.Structure.FieldOrder({"bLength", "bDescriptorType", "bEndpointAddress", "bmAttributes", "wMaxPacketSize", "bInterval", "bRefresh",
+    "bSynchAddress", "extra", "extra_length"})
+
 public class libusb_endpoint_descriptor extends com.sun.jna.Structure {
 	/// Size of this descriptor (in bytes)
 	public byte bLength;

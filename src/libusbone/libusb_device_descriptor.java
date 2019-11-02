@@ -9,6 +9,10 @@ package libusbone;
  * a tool written by <a href="http://ochafik.free.fr/">Olivier Chafik</a> that <a href="http://code.google.com/p/jnaerator/wiki/CreditsAndLicense">uses a few opensource projects.</a>.<br>
  * For help, please visit <a href="http://nativelibs4java.googlecode.com/">NativeLibs4Java</a>, <a href="http://rococoa.dev.java.net/">Rococoa</a>, or <a href="http://jna.dev.java.net/">JNA</a>.
  */
+
+
+@com.sun.jna.Structure.FieldOrder({"bLength", "bDescriptorType", "bcdUSB", "bDeviceClass", "bDeviceSubClass", "bDeviceProtocol", "bMaxPacketSize0",
+    "idVendor", "idProduct", "bcdDevice", "iManufacturer", "iProduct", "iSerialNumber", "bNumConfigurations"})
 public class libusb_device_descriptor extends com.sun.jna.Structure {
 	/// Size of this descriptor (in bytes)
 	public byte bLength;
@@ -77,4 +81,24 @@ public class libusb_device_descriptor extends com.sun.jna.Structure {
 	}
 	public static class ByReference extends libusb_device_descriptor implements com.sun.jna.Structure.ByReference {}
 	public static class ByValue extends libusb_device_descriptor implements com.sun.jna.Structure.ByValue {}
+        
+        @Override
+    public String toString() {
+        return "libusb_device_descriptor {" +
+                " bLength=" + bLength +
+                " bDescriptorType=" + bDescriptorType +
+                " bcdUSB=" + bcdUSB +
+                " bDeviceClass=" + bDeviceClass +
+                " bDeviceSubClass=" + bDeviceSubClass +
+                " bDeviceProtocol=" + bDeviceProtocol +
+                " bMaxPacketSize0=" + bMaxPacketSize0 +
+                " idVendor=" + idVendor +
+                " idProduct=" + idProduct +
+                " bcdDevice=" + bcdDevice +
+                " iManufacturer=" + iManufacturer +
+                " iProduct=" + iProduct +
+                " iSerialNumber=" + iSerialNumber +
+                " bNumConfigurations=" + bNumConfigurations +
+                "}";
+    }
 }
