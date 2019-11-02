@@ -2,7 +2,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.humer.peter</groupId>
-    <artifactId>old_Jna_LibUsb_Project</artifactId>
+    <artifactId>Jna_LibUsb_Project</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <packaging>jar</packaging>
     
@@ -119,5 +119,5 @@
           </resource>
       </resources>
   </build>
-    <name>old_Jna_LibUsb_Project_old</name>
+    <name>Jna_LibUsb_Project</name>
 </project>
