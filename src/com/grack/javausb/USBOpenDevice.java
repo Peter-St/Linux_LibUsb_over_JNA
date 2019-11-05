@@ -164,4 +164,12 @@ public class USBOpenDevice implements AutoCloseable, Closeable {
         return USBNative.sendControlTransfer(handle, bmRequestType, bRequest, wValue, wIndex, data, (short) data.length, timeout);
         
     }
+    
+    public Pointer allocateTransfer(int numPackets) throws USBException {
+        return USBNative.alloc_transfer(numPackets);
+    }
+    
+    public Pointer getDevHandle () {
+        return handle;
+    }
 }

@@ -15,16 +15,18 @@
  */
 package humer.peter.jna_libusb_project;
 
+import com.grack.javausb.USBNative;
+import com.grack.javausb.jna.LibUSBXNative.Libusb_transfer;
 import com.sun.jna.CallbackReference;
 import com.sun.jna.Memory;
 import com.sun.jna.Pointer;
 import java.io.IOException;
-//import libusbone.LibusboneLibrary.Libusb_transfer;
+
 /**
  *
  * @author peter
  */
-public class Request  {
+public class Request extends Libusb_transfer {
 
     public boolean initialized;
     public boolean queued;
@@ -34,26 +36,26 @@ public class Request  {
     private static int PACKETS_PER_REQUEST;
     private static int MAX_PACKET_SIZE;
 
-    public Request( Pointer nativePointer, int maxPacketsPerRequest, int maxSize) {
-       // super(maxPacketsPerRequest, maxSize, nativePointer);
+    public Request(Pointer nativePointer, int maxPacketsPerRequest, int maxSize) {
+        super(maxPacketsPerRequest, maxSize, nativePointer);
         this.PACKETS_PER_REQUEST = maxPacketsPerRequest;
         this.MAX_PACKET_SIZE = maxSize;
         buffer = new Memory(maxPacketsPerRequest * maxSize);
     }
-/*
-    public int initialize(byte addr, int usercontext, Pointer callback) {
+
+    public int initialize(Pointer devHandle, byte addr, int usercontext, Pointer callback) {
         if (queued) {
             throw new IllegalStateException();
         }
 
         position_of_libusb_transfer_usercontext = setUserContext(usercontext);
         setBuffer(buffer);
-        setDev_handle(camDevice.get_dev_handle());
+        setDev_handle(devHandle);
         setCallback(callback);
         setNumberOfPackets(PACKETS_PER_REQUEST);
         setEndpoint(addr);
         setTransferLength(PACKETS_PER_REQUEST * MAX_PACKET_SIZE);
-        setType(LibUsb.libusb_transfer_type.LIBUSB_TRANSFER_TYPE_ISOCHRONOUS.getValue());
+        setType(USBNative.libusb_transfer_type.LIBUSB_TRANSFER_TYPE_ISOCHRONOUS.getValue());
         setTimeout(20);
         for (int packetNo = 0; packetNo < PACKETS_PER_REQUEST; packetNo++) {
             setPacketLength(packetNo, MAX_PACKET_SIZE);
@@ -65,22 +67,6 @@ public class Request  {
 
         return position_of_libusb_transfer_usercontext;
     }
-
-    public void submit() throws IOException {
-        if (!initialized || queued) {
-            throw new IllegalStateException();
-        }
-        initialized = false;
-        //int rc = camDevice.submitTransfer(getNativeLibusbAddr());
-        if (rc == 0) {
-            log("  --  The return of the Transfer is = " + rc + "  -  " + LibUsb.libusb_error.fromNative((byte) rc));
-        } else {
-            logError("  --  The return of the Transfer is = " + rc + "  -  " + LibUsb.libusb_error.fromNative((byte) rc));
-            throw new IllegalStateException("!! Submit xfer failed !! ");
-        }
-        queued = true;
-    }
-
     private void log(String msg) {
         System.out.println(msg);
     }
@@ -95,9 +81,6 @@ public class Request  {
         }
         buffer.read(packetNo * MAX_PACKET_SIZE, buf, 0, len);
     }
-    
-    public void setUrbPointer(Pointer urbPointer) {
-        setNativeLibusbAddr(urbPointer);
-    }
-*/
+
+
 }

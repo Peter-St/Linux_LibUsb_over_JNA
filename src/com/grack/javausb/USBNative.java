@@ -14,7 +14,7 @@ import com.sun.jna.ptr.PointerByReference;
  * Rather than everyone calling LibUSB from all over, we go through a number of
  * nice methods in one central place.
  */
-class USBNative {
+public class USBNative {
 
     private static final LibUSBXNative USB = LibUSBXNative.INSTANCE;
 
@@ -58,23 +58,19 @@ class USBNative {
     static int get_bus_number(Pointer usb_device) {
         return USB.libusb_get_bus_number(usb_device);
     }
-    
+
     static int get_address(Pointer usb_device) {
         return USB.libusb_get_device_address(usb_device);
-    } 
-    
-    static int libusb_set_interface_alt_setting (Pointer dev_handle, int interface_number, int alternate_setting) {
+    }
+
+    static int libusb_set_interface_alt_setting(Pointer dev_handle, int interface_number, int alternate_setting) {
         return USB.libusb_set_interface_alt_setting(dev_handle, interface_number, alternate_setting);
     }
-    
+
     static int libusb_release_interface(Pointer dev_handle, int interface_number) {
         return USB.libusb_release_interface(dev_handle, interface_number);
     }
-    
-    
-    
-    
-    
+
     static libusb_config_descriptor getConfigDescriptor(Pointer dev, int index) throws USBException {
         PointerByReference config = new PointerByReference();
         nativeCall(USB.libusb_get_config_descriptor(dev, index, config));
@@ -116,19 +112,19 @@ class USBNative {
         return nativeCall(USB.libusb_control_transfer(handle, (byte) requestType, (byte) request, (short) value, (short) index,
                 ByteBuffer.wrap(buffer, off, len), (short) len, timeout));
     }
-    
+
     static int sendControlTransfer(Pointer handle, byte bmRequestType, byte bRequest, short wValue, short wIndex, byte[] data,
-                            short wLength, int timeout)
+            short wLength, int timeout)
             throws USBException {
         // TODO: This should be a parameter?
-        return nativeCall(USB.libusb_control_transfer(handle, bmRequestType, bRequest,  wValue,  wIndex,
-                data, wLength, timeout));
+        return USB.libusb_control_transfer(handle, bmRequestType, bRequest, wValue, wIndex,
+                data, wLength, timeout);
     }
-    
-    
-    
-    
-    
+
+    static Pointer alloc_transfer(int numPackets) throws USBException {
+        
+        return USB.libusb_alloc_transfer(numPackets);
+    }
 
     static void freeLibrary(Pointer ctx) {
         USB.libusb_exit(ctx);
@@ -140,12 +136,80 @@ class USBNative {
         return desc[0];
     }
 
-    public static Pointer[] getDeviceHandles(Pointer ctx) {
+    static Pointer[] getDeviceHandles(Pointer ctx) {
         // libusb_device*** list
         final PointerByReference list = new PointerByReference();
         final int count = USB.libusb_get_device_list(ctx, list);
         Pointer[] pointers = list.getValue().getPointerArray(0, count);
         USB.libusb_free_device_list(list.getValue(), false);
         return pointers;
+        
     }
+    
+    public static enum libusb_transfer_type {
+        LIBUSB_TRANSFER_TYPE_CONTROL((byte) 0),
+        LIBUSB_TRANSFER_TYPE_ISOCHRONOUS((byte) 1),
+        LIBUSB_TRANSFER_TYPE_BULK((byte) 2),
+        LIBUSB_TRANSFER_TYPE_INTERRUPT((byte) 3),
+        LIBUSB_TRANSFER_TYPE_BULK_STREAM((byte) 4);
+
+        private final byte value;
+
+        private libusb_transfer_type(byte value) {
+            this.value = value;
+        }
+
+        public byte getValue() {
+            return value;
+        }
+
+        public static libusb_transfer_type fromNative(byte value) {
+            for (libusb_transfer_type val : libusb_transfer_type.values()) {
+                if (val.getValue() == value) {
+                    return val;
+                }
+            }
+            return null;
+        }
+    }
+    
+    // LibUsb Error Codes:
+    public enum libusb_error {
+        LIBUSB_SUCCESS((byte) 0),
+        LIBUSB_ERROR_IO((byte) -1),
+        LIBUSB_ERROR_INVALID_PARAM((byte) -2),
+        LIBUSB_ERROR_ACCESS((byte) -3),
+        LIBUSB_ERROR_NO_DEVICE((byte) -4),
+        LIBUSB_ERROR_NOT_FOUND((byte) -5),
+        LIBUSB_ERROR_BUSY((byte) -6),
+        LIBUSB_ERROR_TIMEOUT((byte) -7),
+        LIBUSB_ERROR_OVERFLOW((byte) -8),
+        LIBUSB_ERROR_PIPE((byte) -9),
+        LIBUSB_ERROR_INTERRUPTED((byte) -10),
+        LIBUSB_ERROR_NO_MEM((byte) -11),
+        LIBUSB_ERROR_NOT_SUPPORTED((byte) -12),
+        LIBUSB_ERROR_OTHER((byte) -99);
+
+        private final byte value;
+
+        private libusb_error(byte value) {
+            this.value = value;
+        }
+
+        public byte getValue() {
+            return value;
+        }
+
+        public static libusb_error fromNative(byte value) {
+            for (libusb_error val : libusb_error.values()) {
+                if (val.getValue() == value) {
+                    return val;
+                }
+            }
+            return null;
+        }
+
+    };
+    
+    
 }

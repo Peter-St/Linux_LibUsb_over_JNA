@@ -109,8 +109,6 @@ public class Main extends javax.swing.JFrame {
     private static int FOXLINK_USB_VID = 0x05c8;
     private static int FOXLINK_USB_PID = 0x0233;
 
-    private Pointer[] urbPointer = new Pointer[ACTIVE_URBS];
-
     private boolean camerafound;
     private USBDevice camDevice;
     private USBOpenDevice openDevice;
@@ -274,11 +272,8 @@ public class Main extends javax.swing.JFrame {
                             device.get_address(),
                             device.vendor(),
                             device.product()));
-
                 }
-
             }
-
         } catch (USBException ex) {
             Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
         }
@@ -363,7 +358,7 @@ public class Main extends javax.swing.JFrame {
     }//GEN-LAST:event_closeCameraConnectionActionPerformed
 
     private void startIsoTransferActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_startIsoTransferActionPerformed
-/*
+
         StringBuilder sb = new StringBuilder();
         sb.append("");
 
@@ -381,25 +376,16 @@ public class Main extends javax.swing.JFrame {
 
             for (i = 0; i < ACTIVE_URBS; i++) {
 
-                if (i == 0) {
-
-                    Pointer p = openDevice.allocateTransfer(PACKETS_PER_REQUEST);
-                    //log("alloc dump: 0 / 2000\n\n" + p.dump(0, 2000));
-
-                    Request req = new Request(openDevice, PACKETS_PER_REQUEST, MAX_PACKET_SIZE);
-
-                    log("The size should be" + req.getLibusbSize());
-                }
-
-                urbPointer[i] = openDevice.allocateTransfer(PACKETS_PER_REQUEST);
-
+                Pointer urbPointer = openDevice.allocateTransfer(PACKETS_PER_REQUEST);
                 //req.setUrbPointer(camDevice.allocateTransfer(PACKETS_PER_REQUEST));
-                Request req = new Request(openDevice, urbPointer[i], PACKETS_PER_REQUEST, MAX_PACKET_SIZE);
 
-                position_of_libusb_transfer_usercontext = req.initialize(endpointadress, i, CallbackReference.getFunctionPointer(setTheCallbackFunction()));
-                req.submit();
+                Request req = new Request(urbPointer, PACKETS_PER_REQUEST, MAX_PACKET_SIZE);
+
+                //position_of_libusb_transfer_usercontext = req.initialize(openDevice.getDevHandle(), endpointadress, i, CallbackReference.getFunctionPointer(setTheCallbackFunction()));
+                //req.submit();
                 //log("The Request size is " + req.getLibusbSize());
                 xfers.add(req);
+
             }
 
             log("  -- All LibUsb Transfers sucessful submitted.");
@@ -416,7 +402,8 @@ public class Main extends javax.swing.JFrame {
             );
 
             do {
-                openDevice.handle_events();
+
+                //openDevice.handle_events();
                 signal++;
                 if (stopTransmission) {
 
@@ -438,7 +425,6 @@ public class Main extends javax.swing.JFrame {
         jTextArea1.setText(sb.toString());
 
         log("  -- Exit.");
-*/
     }//GEN-LAST:event_startIsoTransferActionPerformed
 
     /**
@@ -611,6 +597,7 @@ public class Main extends javax.swing.JFrame {
 
         if (openDevice != null) {
             try {
+                log("Start exiting the camera ...");
                 openDevice.release_interface(controlInterface);
                 openDevice.release_interface(streamInterface);
                 openDevice.close();
