@@ -12,64 +12,72 @@ import com.grack.javausb.jna.libusb_device_descriptor;
 import com.sun.jna.Pointer;
 
 public class USB {
-	private Pointer ctx;
-	private FinalizationThread finalizationThread;
 
-	private static final Logger logger = Logger.getLogger(USB.class.getName());
+    private Pointer ctx;
+    private FinalizationThread finalizationThread;
 
-	public USB() throws USBException {
-		finalizationThread = new FinalizationThread();
-		finalizationThread.start();
-		finalizationThread.track(this, new LibUSBCleanupFinalizer(USBNative.openLibrary()));
+    private static final Logger logger = Logger.getLogger(USB.class.getName());
 
-		logger.info("Initialized LibUSB JNA wrapper");
-	}
+    public USB() throws USBException {
+        finalizationThread = new FinalizationThread();
+        finalizationThread.start();
+        this.ctx = USBNative.openLibrary();
+        finalizationThread.track(this, new LibUSBCleanupFinalizer(ctx));
+        
 
-	private static class LibUSBCleanupFinalizer implements Finalizer {
-		private Pointer ctx;
+        logger.info("Initialized LibUSB JNA wrapper");
+    }
 
-		public LibUSBCleanupFinalizer(Pointer ctx) {
-			this.ctx = ctx;
-		}
+    private static class LibUSBCleanupFinalizer implements Finalizer {
 
-		@Override
-		public void cleanup() {
-			// Free the library context
-			logger.info("Freeing libusb");
-			USBNative.freeLibrary(ctx);
-		}
-	}
+        private Pointer ctx;
+        
+        public LibUSBCleanupFinalizer(Pointer ctx) {
+            this.ctx = ctx;
+        }
 
-	public Iterable<USBDevice> devices() {
-		return new Iterable<USBDevice>() {
-			public Iterator<USBDevice> iterator() {
-				// libusb_device ***list
-				Pointer[] pointers = USBNative.getDeviceHandles(ctx);
+        @Override
+        public void cleanup() {
+            // Free the library context
+            logger.info("Freeing libusb");
+            USBNative.freeLibrary(ctx);
+        }
+    }
 
-				// Eagerly transform this list
-				ArrayList<USBDevice> descriptors = Lists.newArrayList(Iterables.transform(Arrays.asList(pointers),
-						new Function<Pointer, USBDevice>() {
-							public USBDevice apply(Pointer dev) {
-								libusb_device_descriptor desc;
-								try {
-									desc = USBNative.getDeviceDescriptor(dev);
-								} catch (USBException e) {
-									throw new USBRuntimeException(e);
-								}
-								return new USBDevice(USB.this, desc, dev);
-							}
-						}));
+    public Iterable<USBDevice> devices() {
+        return new Iterable<USBDevice>() {
+            public Iterator<USBDevice> iterator() {
+                // libusb_device ***list
+                Pointer[] pointers = USBNative.getDeviceHandles(ctx);
 
-				return descriptors.iterator();
-			}
-		};
-	}
+                // Eagerly transform this list
+                ArrayList<USBDevice> descriptors = Lists.newArrayList(Iterables.transform(Arrays.asList(pointers),
+                        new Function<Pointer, USBDevice>() {
+                    public USBDevice apply(Pointer dev) {
+                        libusb_device_descriptor desc;
+                        try {
+                            desc = USBNative.getDeviceDescriptor(dev);
+                        } catch (USBException e) {
+                            throw new USBRuntimeException(e);
+                        }
+                        return new USBDevice(USB.this, desc, dev);
+                    }
+                }));
 
-	FinalizerReference trackFinalizer(Object referent, Finalizer finalizer) {
-		return finalizationThread.track(referent, finalizer);
-	}
+                return descriptors.iterator();
+            }
+        };
+    }
 
-	void forceFinalization(FinalizerReference finalizer) {
-		finalizationThread.force(finalizer);
-	}
+    FinalizerReference trackFinalizer(Object referent, Finalizer finalizer) {
+        return finalizationThread.track(referent, finalizer);
+    }
+
+    void forceFinalization(FinalizerReference finalizer) {
+        finalizationThread.force(finalizer);
+    }
+    
+    public Pointer getContext() {
+        return ctx;
+    }
 }

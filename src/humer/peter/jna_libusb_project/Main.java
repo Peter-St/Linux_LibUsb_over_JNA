@@ -15,7 +15,6 @@
  */
 package humer.peter.jna_libusb_project;
 
-import com.google.common.base.Charsets;
 import com.grack.javausb.USB;
 import com.grack.javausb.USBConfiguration;
 import com.grack.javausb.USBDevice;
@@ -25,19 +24,15 @@ import com.grack.javausb.USBInterface;
 import com.grack.javausb.USBInterfaceDescriptor;
 import com.grack.javausb.USBOpenDevice;
 import com.grack.javausb.USBTransferType;
+import com.grack.javausb.jna.LibUSBXNative;
 import com.grack.javausb.jna.libusb_device_descriptor;
-import com.sun.jna.LastErrorException;
 import com.sun.jna.Memory;
-import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 import com.sun.jna.CallbackReference;
-import com.sun.jna.ptr.PointerByReference;
+import com.sun.jna.Native;
 import java.io.IOException;
 import static java.lang.Integer.toHexString;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -48,7 +43,7 @@ import java.util.logging.Logger;
 public class Main extends javax.swing.JFrame {
 
     // Device Variables
-    private final ArrayList<Request> xfers = new ArrayList<>();
+    private ArrayList<Request> xfers = new ArrayList<>();
     private static final byte endpointadress = (byte) 0x81;
     private static final int CAM_STREAMING_INTERFACE_NUM = 1;
     private static final int CAM_CONTROL_INTERFACE_NUM = 0;
@@ -114,6 +109,7 @@ public class Main extends javax.swing.JFrame {
     private USBOpenDevice openDevice;
     private static USBInterface controlInterface;
     private static USBInterface streamInterface;
+    private Pointer ctx;
 
     // Color Text Output
     public static final String ANSI_GREEN = "\u001B[32m";
@@ -230,6 +226,8 @@ public class Main extends javax.swing.JFrame {
 
         try {
             USB usb = new USB();
+            ctx = usb.getContext();
+            //log("Context = \n" + ctx.toString());
             System.out.printf("%4s    %10s     %10s\n",
                     "Bus/Address",
                     "idVendor",
@@ -297,7 +295,8 @@ public class Main extends javax.swing.JFrame {
         for (USBConfiguration config : camDevice.configurations()) {
 
             try {
-                openDevice = camDevice.open();
+                openDevice = camDevice.open_device_with_vid_pid();
+                //openDevice = camDevice.open();
                 for (USBInterface iface : config.interfaces()) {
                     System.out.println(iface);
                     //sb.append(iface);
@@ -374,6 +373,10 @@ public class Main extends javax.swing.JFrame {
             log("Altsetting setted to: " + ALT_SETTING + "\n  -- Try to allocate the LibUsb Transfers.");
             log("  -- Starting with the submittion of the UsbRequestBlocks.");
 
+            xfers = new ArrayList<>(ACTIVE_URBS);
+            signal = 0;
+            stopTransmission = false;
+
             for (i = 0; i < ACTIVE_URBS; i++) {
 
                 Pointer urbPointer = openDevice.allocateTransfer(PACKETS_PER_REQUEST);
@@ -381,11 +384,20 @@ public class Main extends javax.swing.JFrame {
 
                 Request req = new Request(urbPointer, PACKETS_PER_REQUEST, MAX_PACKET_SIZE);
 
-                //position_of_libusb_transfer_usercontext = req.initialize(openDevice.getDevHandle(), endpointadress, i, CallbackReference.getFunctionPointer(setTheCallbackFunction()));
+                position_of_libusb_transfer_usercontext = req.initialize(openDevice.getDevHandle(), endpointadress, i, CallbackReference.getFunctionPointer(setTheCallbackFunction()));
                 //req.submit();
+                int rc = openDevice.submitTransfer(urbPointer);
+                if (rc == 0) {
+                    logSucess("Submitted UrbBlock Nr." + i);
+                } else if (rc < 0) {
+                    logError("Failed to Submit UrbBlock Nr. " + i);
+                    throw new IOException();
+                }
                 //log("The Request size is " + req.getLibusbSize());
+                int status = urbPointer.getInt(req.getPosTransferStatus());
+                log("Status = " + status);
+                
                 xfers.add(req);
-
             }
 
             log("  -- All LibUsb Transfers sucessful submitted.");
@@ -398,12 +410,11 @@ public class Main extends javax.swing.JFrame {
                     stopTransmission = true;
                 }
             },
-                    1000
+                    5000
             );
 
             do {
-
-                //openDevice.handle_events();
+                openDevice.handle_events(camDevice.getContext());
                 signal++;
                 if (stopTransmission) {
 
@@ -412,6 +423,8 @@ public class Main extends javax.swing.JFrame {
             } while (signal < 1000);
 
         } catch (USBException ex) {
+            Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
+        } catch (IOException ex) {
             Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
         }
 
@@ -423,6 +436,7 @@ public class Main extends javax.swing.JFrame {
         }
 
         jTextArea1.setText(sb.toString());
+        closeConnection();
 
         log("  -- Exit.");
     }//GEN-LAST:event_startIsoTransferActionPerformed
@@ -612,6 +626,7 @@ public class Main extends javax.swing.JFrame {
 
         }
         camDevice = null;
+        xfers = null;
     }
 
     /*
@@ -745,5 +760,101 @@ public class Main extends javax.swing.JFrame {
     private static boolean isFoxlink(libusb_device_descriptor desc) {
         return desc.idVendor == FOXLINK_USB_VID
                 && desc.idProduct == FOXLINK_USB_PID;
+    }
+
+    private LibUSBXNative.Libusb_transfer_cb_fn setTheCallbackFunction() {
+        LibUSBXNative.Libusb_transfer_cb_fn callback = new LibUSBXNative.Libusb_transfer_cb_fn() {
+
+            @Override
+            public void invoke(Pointer transfer) {
+
+                //log("PosUsercontext = " + position_of_libusb_transfer_usercontext);
+                int urbNdx = transfer.getByte(position_of_libusb_transfer_usercontext);
+                log("urbNdx = " + urbNdx);
+                Request xfer = xfers.get(urbNdx);
+                log("Status = " + xfer.getTransferStatus());
+                log("Transfer length = " + xfer.getTransferLength());
+                log("Transfer length = " + xfer.getTransferActualLength());
+                if (xfer.getTransferActualLength() != 0) {
+                    try {
+                        throw new Exception("packetLen > maxPacketSize");
+                    } catch (Exception ex) {
+                        Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                }
+                
+
+                for (int packetNo = 0; packetNo < xfer.getNumberOfPackets(); packetNo++) {
+                    if (xfer.getPacketStatus(packetNo) == LIBUSB_TRANSFER_COMPLETED) {
+                        packetCnt++;
+                        int packetLen = xfer.getPacketLength(packetNo);
+                        if (packetLen == 0) {
+                            packet0Cnt++;
+                        }
+                        if (packetLen == 12) {
+                            packet12Cnt++;
+                        }
+                        if (packetLen == 0) {
+                            continue;
+                        }
+                        StringBuilder logEntry = new StringBuilder(requestCnt + "/" + packetNo + " len=" + packetLen);
+                        if (packetLen > 0) {
+                            if (packetLen > MAX_PACKET_SIZE) {
+                                //throw new Exception("packetLen > maxPacketSize");
+                            }
+                            byte[] data = new byte[MAX_PACKET_SIZE];
+
+                            xfer.getPacketDataRequest(packetNo, data, packetLen);
+
+                            logEntry.append(" data=" + hexDump(data, Math.min(32, packetLen)));
+                            int headerLen = data[0] & 0xff;
+
+                            try {
+                                if (headerLen < 2 || headerLen > packetLen) {
+                                    //    skipFrames = 1;
+                                }
+                            } catch (Exception e) {
+                                System.out.println("Invalid payload header length.");
+                            }
+                            int headerFlags = data[1] & 0xff;
+                            if (headerFlags == 0x8c) {
+                                packetHdr8Ccnt++;
+                            }
+                            // logEntry.append(" hdrLen=" + headerLen + " hdr[1]=0x" + Integer.toHexString(headerFlags));
+                            int dataLen = packetLen - headerLen;
+                            if (dataLen > 0) {
+                                packetDataCnt++;
+                            }
+                            frameLen += dataLen;
+                            if ((headerFlags & 0x40) != 0) {
+                                logEntry.append(" *** Error ***");
+                                packetErrorCnt++;
+                            }
+                            if ((headerFlags & 2) != 0) {
+                                logEntry.append(" EOF frameLen=" + frameLen);
+                                frameCnt++;
+                                frameLen = 0;
+                            }
+                        }
+                        logArray.add(logEntry.toString());
+
+                    }
+
+                }
+                requestCnt++;
+
+                try {
+
+                    if (!stopTransmission && openDevice.submitTransfer(transfer) != 0) {
+                        throw new IllegalStateException("!! Submit xfer failed !! " + Native.POINTER_SIZE);
+                    }
+
+                    //log("return");
+                } catch (USBException ex) {
+                    Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            }
+        };
+        return callback;
     }
 }

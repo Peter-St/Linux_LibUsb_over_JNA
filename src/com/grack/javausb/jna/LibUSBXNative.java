@@ -41,6 +41,8 @@ public interface LibUSBXNative extends Library {
     // int LIBUSB_CALL libusb_open(libusb_device *dev, libusb_device_handle
     // **handle);
     int libusb_open(Pointer dev, PointerByReference handle);
+    
+    Pointer libusb_open_device_with_vid_pid(Pointer context, int vendor_id, int product_id);
 
     int libusb_get_bus_number(Pointer usb_device);
 
@@ -97,6 +99,16 @@ public interface LibUSBXNative extends Library {
     int libusb_get_string_descriptor_ascii(Pointer dev, byte desc_index, byte[] data, int length);
 
     Pointer libusb_alloc_transfer(int iso_packets);
+    
+    int libusb_submit_transfer(Pointer transferPointer);
+    
+    int libusb_handle_events(Pointer ctx);
+    
+    void libusb_free_transfer(Pointer transfer);
+    
+    Pointer libusb_error_name (int error);
+    
+    Pointer libusb_strerror (String name);
 
     interface Libusb_transfer_cb_fn extends Callback {
 
@@ -249,6 +261,10 @@ public interface LibUSBXNative extends Library {
         public int getTransferActualLength() {
             return libusbBuf.getInt(libusb_transfer_actual_length);
         }
+        
+        public int getTransferStatus() {
+            return libusbBuf.getInt(libusb_transfer_status);
+        }
 
         // Callback function
         public void setCallback(Pointer callback) {
@@ -359,7 +375,13 @@ public interface LibUSBXNative extends Library {
             return libusbBuf.getInt(libusbBaseSize + packetNo * packetDescSize + libusb_iso_packet_desc_status);
             //System.out.println("Endpunktadresse vo");
         }
+        
+        public int getPosTransferStatus () {
+            return libusb_transfer_status;
+        }
 
     }
+    
+    
 
 }

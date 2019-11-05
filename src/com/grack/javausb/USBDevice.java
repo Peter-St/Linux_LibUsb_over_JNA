@@ -103,7 +103,15 @@ public class USBDevice {
     public USBOpenDevice open() throws USBException {
         return new USBOpenDevice(usb, this, USBNative.openDevice(dev));
     }
+    
+    public USBOpenDevice open_device_with_vid_pid() {        
+        return new USBOpenDevice(usb, this, USBNative.open_device_with_vid_pid(usb.getContext(), descriptor.idVendor, descriptor.idProduct));
+    }
 
+    public Pointer getContext() {
+        return usb.getContext();
+    }
+    
     @Override
     public String toString() {
         return String.format("Device %04x:%04x", vendor(), product());

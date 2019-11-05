@@ -122,7 +122,7 @@ public class USBNative {
     }
 
     static Pointer alloc_transfer(int numPackets) throws USBException {
-        
+
         return USB.libusb_alloc_transfer(numPackets);
     }
 
@@ -143,9 +143,20 @@ public class USBNative {
         Pointer[] pointers = list.getValue().getPointerArray(0, count);
         USB.libusb_free_device_list(list.getValue(), false);
         return pointers;
-        
+    }
+
+    static int submitTransfer(Pointer transfer) {
+        return USB.libusb_submit_transfer(transfer);
+    }
+
+    static int handle_events(Pointer context) {
+        return USB.libusb_handle_events(context);
     }
     
+    static Pointer open_device_with_vid_pid(Pointer context, int vendor_id, int product_id) {
+        return USB.libusb_open_device_with_vid_pid(context, vendor_id, product_id);
+    }
+
     public static enum libusb_transfer_type {
         LIBUSB_TRANSFER_TYPE_CONTROL((byte) 0),
         LIBUSB_TRANSFER_TYPE_ISOCHRONOUS((byte) 1),
@@ -172,7 +183,7 @@ public class USBNative {
             return null;
         }
     }
-    
+
     // LibUsb Error Codes:
     public enum libusb_error {
         LIBUSB_SUCCESS((byte) 0),
@@ -210,6 +221,63 @@ public class USBNative {
         }
 
     };
-    
-    
+
+    /**
+     * \ingroup asyncio<br>
+     * Transfer status codes<br>
+     * <i>native declaration : /usr/include/limits.h:716</i><br>
+     * enum values
+     */
+    public static interface libusb_transfer_status {
+
+        /**
+         * Transfer completed without error. Note that this does not
+         * indicate<br>
+         * that the entire amount of requested data was transferred.<br>
+         * Transfer completed without error. Note that this does not
+         * indicate<br>
+         * that the entire amount of requested data was transferred.<br>
+         * <i>native declaration : /usr/include/limits.h:719</i>
+         */
+        public static final int LIBUSB_TRANSFER_COMPLETED = 0;
+        /**
+         * Transfer failed<br>
+         * Transfer failed<br>
+         * <i>native declaration : /usr/include/limits.h:722</i>
+         */
+        public static final int LIBUSB_TRANSFER_ERROR = 1;
+        /**
+         * Transfer timed out<br>
+         * Transfer timed out<br>
+         * <i>native declaration : /usr/include/limits.h:725</i>
+         */
+        public static final int LIBUSB_TRANSFER_TIMED_OUT = 2;
+        /**
+         * Transfer was cancelled<br>
+         * Transfer was cancelled<br>
+         * <i>native declaration : /usr/include/limits.h:728</i>
+         */
+        public static final int LIBUSB_TRANSFER_CANCELLED = 3;
+        /**
+         * For bulk/interrupt endpoints: halt condition detected (endpoint<br>
+         * stalled). For control endpoints: control request not supported.<br>
+         * For bulk/interrupt endpoints: halt condition detected (endpoint<br>
+         * stalled). For control endpoints: control request not supported.<br>
+         * <i>native declaration : /usr/include/limits.h:732</i>
+         */
+        public static final int LIBUSB_TRANSFER_STALL = 4;
+        /**
+         * Device was disconnected<br>
+         * Device was disconnected<br>
+         * <i>native declaration : /usr/include/limits.h:735</i>
+         */
+        public static final int LIBUSB_TRANSFER_NO_DEVICE = 5;
+        /**
+         * Device sent more data than requested<br>
+         * Device sent more data than requested<br>
+         * <i>native declaration : /usr/include/limits.h:738</i>
+         */
+        public static final int LIBUSB_TRANSFER_OVERFLOW = 6;
+    }
+
 }

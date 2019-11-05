@@ -172,4 +172,12 @@ public class USBOpenDevice implements AutoCloseable, Closeable {
     public Pointer getDevHandle () {
         return handle;
     }
+    
+    public int submitTransfer(Pointer transfer) throws USBException {
+        return USBNative.submitTransfer(transfer);
+    }
+    
+    public int handle_events (Pointer context) throws USBException {
+        return USBNative.handle_events(context);
+    }
 }
