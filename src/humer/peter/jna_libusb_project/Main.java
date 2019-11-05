@@ -15,6 +15,17 @@
  */
 package humer.peter.jna_libusb_project;
 
+import com.google.common.base.Charsets;
+import com.grack.javausb.USB;
+import com.grack.javausb.USBConfiguration;
+import com.grack.javausb.USBDevice;
+import com.grack.javausb.USBEndpoint;
+import com.grack.javausb.USBException;
+import com.grack.javausb.USBInterface;
+import com.grack.javausb.USBInterfaceDescriptor;
+import com.grack.javausb.USBOpenDevice;
+import com.grack.javausb.USBTransferType;
+import com.grack.javausb.jna.libusb_device_descriptor;
 import com.sun.jna.LastErrorException;
 import com.sun.jna.Memory;
 import com.sun.jna.Native;
@@ -26,10 +37,9 @@ import static java.lang.Integer.toHexString;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import libusbone.LibusboneLibrary;
-import libusbone.libusb_device_descriptor;
 
 /**
  *
@@ -102,8 +112,10 @@ public class Main extends javax.swing.JFrame {
     private Pointer[] urbPointer = new Pointer[ACTIVE_URBS];
 
     private boolean camerafound;
-
-    private libusbone.UsbDevice camDevice;
+    private USBDevice camDevice;
+    private USBOpenDevice openDevice;
+    private static USBInterface controlInterface;
+    private static USBInterface streamInterface;
 
     // Color Text Output
     public static final String ANSI_GREEN = "\u001B[32m";
@@ -218,55 +230,62 @@ public class Main extends javax.swing.JFrame {
 
         StringBuilder sb = new StringBuilder();
 
-        LibusboneLibrary lib = LibusboneLibrary.INSTANCE;
+        try {
+            USB usb = new USB();
+            System.out.printf("%4s    %10s     %10s\n",
+                    "Bus/Address",
+                    "idVendor",
+                    "idProduct");
 
-        LibusboneLibrary.libusb_context libUsbContext = getContext(lib);
+            sb.append(String.format("%4s     %10s     %10s\n\n",
+                    "Bus/Address",
+                    "idVendor",
+                    "idProduct"));
 
-        LibusboneLibrary.libusb_device[] devices = getDeviceList(lib, libUsbContext);
+            for (USBDevice device : usb.devices()) {
 
-        System.out.printf("%4s  %10s %10s\n",
-                "Bus/Address",
-                "idVendor",
-                "idProduct");
+                if (isFoxlink(device.getDescriptor())) {
 
-        sb.append(String.format("%4s  %10s %10s\n\n",
-                "Bus/Address",
-                "idVendor",
-                "idProduct"));
+                    camDevice = device;
 
-        for (LibusboneLibrary.libusb_device libusbDevice : devices) {
-            libusbone.UsbDevice d = new libusbone.UsbDevice(lib, libUsbContext, libusbDevice);
+                    System.out.printf("%03X/%03X         0x%04X        0x%04X    %4s\n",
+                            device.get_bus_number(),
+                            device.get_address(),
+                            device.vendor(),
+                            device.product(),
+                            "   --->   Foxlink");
 
-            if (isFoxlink(d.descriptor)) {
-                System.out.printf(" %03x/%03x        0x%04X    0x%04X   %20s\n",
-                        d.get_bus_number(),
-                        d.get_address(),
-                        d.descriptor.idVendor,
-                        d.descriptor.idProduct,
-                        "    -->  FOXLINK FOUND");
-                sb.append(String.format(" %03x/%03x       0x%04X    0x%04X  %20s\n",
-                        d.get_bus_number(),
-                        d.get_address(),
-                        d.descriptor.idVendor,
-                        d.descriptor.idProduct,
-                        "   -->  FOXLINK FOUND"));
-                camDevice = d;
-            } else {
-                System.out.printf(" %03x/%03x        0x%04X    0x%04X\n",
-                        d.get_bus_number(),
-                        d.get_address(),
-                        d.descriptor.idVendor,
-                        d.descriptor.idProduct);
-                sb.append(String.format(" %03x/%03x       0x%04X    0x%04X\n",
-                        d.get_bus_number(),
-                        d.get_address(),
-                        d.descriptor.idVendor,
-                        d.descriptor.idProduct));
+                    sb.append(String.format("%03X/%03X          0x%04X        0x%04X   %4s\n",
+                            device.get_bus_number(),
+                            device.get_address(),
+                            device.vendor(),
+                            device.product(),
+                            "   --->   Foxlink"));
+
+                } else {
+                    System.out.printf("%03X/%03X         0x%04X       0x%04X\n",
+                            device.get_bus_number(),
+                            device.get_address(),
+                            device.vendor(),
+                            device.product());
+
+                    sb.append(String.format("%03X/%03X          0x%04X        0x%04X\n",
+                            device.get_bus_number(),
+                            device.get_address(),
+                            device.vendor(),
+                            device.product()));
+
+                }
+
             }
+
+        } catch (USBException ex) {
+            Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        if (camDevice != null) {
+            sb.append("Found the camera: Foxlink");
         }
         jTextArea1.setText(sb.toString());
-
-        lib.libusb_free_device_list(devices, 0); //should be 1, except this mysteriously causes JVM heapdump
 
 
     }//GEN-LAST:event_usb_searchActionPerformed
@@ -277,43 +296,63 @@ public class Main extends javax.swing.JFrame {
 
         if (camDevice == null) {
             jTextArea1.setText("No Camera Found.\n\nRun 'search the camera' first. ");
-            logError("No Camera Found.\n\nRun 'search the camera' first.");
             return;
         }
 
-        camDevice.LIBUSB_open(true);
-        //camDevice.reset_device();
-        if (camDevice.kernel_driver_active(CAM_CONTROL_INTERFACE_NUM) == 1) {
-            log("  -- Controlinterface Kernel Driver active! ... trying to detach ..");
-            sb.append("  -- Controlinterface Kernel Driver active! ... trying to detach ..");
-            if (camDevice.detach_kernel_driver(CAM_CONTROL_INTERFACE_NUM) == 0) {
-                logSucess("Kernel Driver detached from Control Interface");
-            };
-        }
-        if (camDevice.claim_interface(CAM_CONTROL_INTERFACE_NUM) != 0) {
-            logError("Failed to Claim the Control Interface");
-        } else {
-            logSucess("  -- Camera Controlinterface claimed !");
-            sb.append("  -- Camera Controlinterface claimed !");
-        }
-        if (camDevice.kernel_driver_active(CAM_STREAMING_INTERFACE_NUM) == 1) {
-            log("  -- Streaminterface Kernel Driver active! ... trying to detach ..");
-            if (camDevice.detach_kernel_driver(CAM_STREAMING_INTERFACE_NUM) == 0) {
-                logSucess("Kernel Driver detached from Stream Interface");
+        for (USBConfiguration config : camDevice.configurations()) {
+
+            try {
+                openDevice = camDevice.open();
+                for (USBInterface iface : config.interfaces()) {
+                    System.out.println(iface);
+                    //sb.append(iface);
+                    if (openDevice.kernel_driver_active(iface)) {
+                        log("Kernel Driver on Interface " + iface.number() + " active");
+                        sb.append("Kernel Driver on Interface " + iface.number() + " active\n");
+                        if (openDevice.detach_kernel_driver(iface)) {
+                            log("Kernel Driver on Interface " + iface.number() + " sucessful detached");
+                            sb.append("Kernel Driver on Interface " + iface.number() + " sucessful detached\n");
+                        }
+                    }
+                    if (openDevice.claim(iface)) {
+                        logSucess("Interface " + iface.number() + " claimed !");
+                        sb.append("Interface " + iface.number() + " claimed !\n");
+                        for (USBInterfaceDescriptor ifaceDescriptor : iface.altSettings()) {
+                            for (USBEndpoint endpoint : ifaceDescriptor.endpoints()) {
+                                System.out.println(endpoint);
+                                sb.append(endpoint + "\n");
+                                if (endpoint.transferType() == USBTransferType.INTERRUPT) {
+                                    controlInterface = iface;
+                                } else if (endpoint.transferType() == USBTransferType.ISOCHRONOUS) {
+                                    streamInterface = iface;
+                                }
+                            }
+                        }
+                    } else {
+                        logError("Failed to Claim the interface " + iface.number());
+                        sb.append("Failed to Claim the interface " + iface.number() + "\n");
+                    }
+                }
+            } catch (USBException ex) {
+                Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
             }
         }
-        if (camDevice.claim_interface(CAM_STREAMING_INTERFACE_NUM) == 0) {
-            logSucess("  -- Camera Streaminterface claimed !");
-            sb.append("  -- Camera Streaminterface claimed !");
-        }
-        camDevice.set_interface_alt_setting(CAM_STREAMING_INTERFACE_NUM, 0);
-        System.out.println("  -- Altsetting setted to 0");
-        sb.append("  -- Altsetting setted to 0");
+
         try {
-            controltransfer(camDevice, sb);
+            if (openDevice.set_interface_alt_setting(streamInterface.number(), 0)) {
+                log("  -- Altsetting setted to 0");
+                sb.append("  -- Altsetting setted to 0\n");
+                controltransfer(sb);
+
+            } else {
+                log("  --  failed to set the Altsetting. ");
+            }
+        } catch (USBException ex) {
+            Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
         } catch (Exception ex) {
             Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
         }
+
         jTextArea1.setText(sb.toString());
 
 
@@ -324,40 +363,38 @@ public class Main extends javax.swing.JFrame {
     }//GEN-LAST:event_closeCameraConnectionActionPerformed
 
     private void startIsoTransferActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_startIsoTransferActionPerformed
+/*
+        StringBuilder sb = new StringBuilder();
+        sb.append("");
 
-        /*
-        
-        
-        if (camDevice == null) {
-            jTextArea1.setText("No Camera Found.\n\nRun 'search the camera' first. ");
+        if (openDevice == null) {
+            jTextArea1.setText("No Camera Found.\n\nRun 'search the camera', or 'Open the camera' first. ");
 
             return;
         }
         int i;
 
         try {
-            camDevice.set_interface_alt_setting(CAM_STREAMING_INTERFACE_NUM, ALT_SETTING);
+            openDevice.set_interface_alt_setting(streamInterface.number(), ALT_SETTING);
             log("Altsetting setted to: " + ALT_SETTING + "\n  -- Try to allocate the LibUsb Transfers.");
             log("  -- Starting with the submittion of the UsbRequestBlocks.");
 
             for (i = 0; i < ACTIVE_URBS; i++) {
-                /*
+
                 if (i == 0) {
 
-                    Pointer p = camDevice.allocateTransfer(PACKETS_PER_REQUEST);
+                    Pointer p = openDevice.allocateTransfer(PACKETS_PER_REQUEST);
                     //log("alloc dump: 0 / 2000\n\n" + p.dump(0, 2000));
 
-                    Request req = new Request(camDevice, PACKETS_PER_REQUEST, MAX_PACKET_SIZE);
-                    
+                    Request req = new Request(openDevice, PACKETS_PER_REQUEST, MAX_PACKET_SIZE);
+
                     log("The size should be" + req.getLibusbSize());
                 }
-                
-         */
- /*
-                urbPointer[i] = camDevice.allocateTransfer(PACKETS_PER_REQUEST);
+
+                urbPointer[i] = openDevice.allocateTransfer(PACKETS_PER_REQUEST);
 
                 //req.setUrbPointer(camDevice.allocateTransfer(PACKETS_PER_REQUEST));
-                Request req = new Request(camDevice, urbPointer[i], PACKETS_PER_REQUEST, MAX_PACKET_SIZE);
+                Request req = new Request(openDevice, urbPointer[i], PACKETS_PER_REQUEST, MAX_PACKET_SIZE);
 
                 position_of_libusb_transfer_usercontext = req.initialize(endpointadress, i, CallbackReference.getFunctionPointer(setTheCallbackFunction()));
                 req.submit();
@@ -379,7 +416,7 @@ public class Main extends javax.swing.JFrame {
             );
 
             do {
-                camDevice.handle_events(context);
+                openDevice.handle_events();
                 signal++;
                 if (stopTransmission) {
 
@@ -387,10 +424,9 @@ public class Main extends javax.swing.JFrame {
                 }
             } while (signal < 1000);
 
-        } catch (LibUsbNotFoundException | LibUsbNoDeviceException | LibUsbOtherException | LibUsbTimeoutException | LibUsbPipeException | LibUsbOverflowException | IOException ex) {
+        } catch (USBException ex) {
             Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
         }
-        StringBuilder sb = new StringBuilder();
 
         System.out.println("requests=" + requestCnt + " packetCnt=" + packetCnt + " packetErrorCnt=" + packetErrorCnt + " packet0Cnt=" + packet0Cnt + ", packet12Cnt=" + packet12Cnt + ", packetDataCnt=" + packetDataCnt + " packetHdr8cCnt=" + packetHdr8Ccnt + " frameCnt=" + frameCnt);
         sb.append("requests=" + requestCnt + " packetCnt=" + packetCnt + " packetErrorCnt=" + packetErrorCnt + " packet0Cnt=" + packet0Cnt + ", packet12Cnt=" + packet12Cnt + ", packetDataCnt=" + packetDataCnt + " packetHdr8cCnt=" + packetHdr8Ccnt + " frameCnt=" + frameCnt);
@@ -401,31 +437,8 @@ public class Main extends javax.swing.JFrame {
 
         jTextArea1.setText(sb.toString());
 
-        try {
-
-            for (i = 0; i < ACTIVE_URBS; i++) {
-                //  camDevice.free_transfer(xfers.get(i).libusbBufPointer);
-            }
-            camDevice.release_interface(CAM_CONTROL_INTERFACE_NUM);
-            camDevice.release_interface(CAM_STREAMING_INTERFACE_NUM);
-            camDevice.close();
-            camDevice.exit(null);
-
-        } catch (LibUsbNotFoundException ex) {
-            Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (LibUsbBusyException ex) {
-            Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (LibUsbNoDeviceException ex) {
-            Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (LibUsbOtherException ex) {
-            Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
-        }
-
         log("  -- Exit.");
-        
-        
-         */
-
+*/
     }//GEN-LAST:event_startIsoTransferActionPerformed
 
     /**
@@ -442,16 +455,21 @@ public class Main extends javax.swing.JFrame {
                 if ("Nimbus".equals(info.getName())) {
                     javax.swing.UIManager.setLookAndFeel(info.getClassName());
                     break;
+
                 }
             }
         } catch (ClassNotFoundException ex) {
-            java.util.logging.Logger.getLogger(Main.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
+            java.util.logging.Logger.getLogger(Main.class
+                    .getName()).log(java.util.logging.Level.SEVERE, null, ex);
         } catch (InstantiationException ex) {
-            java.util.logging.Logger.getLogger(Main.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
+            java.util.logging.Logger.getLogger(Main.class
+                    .getName()).log(java.util.logging.Level.SEVERE, null, ex);
         } catch (IllegalAccessException ex) {
-            java.util.logging.Logger.getLogger(Main.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
+            java.util.logging.Logger.getLogger(Main.class
+                    .getName()).log(java.util.logging.Level.SEVERE, null, ex);
         } catch (javax.swing.UnsupportedLookAndFeelException ex) {
-            java.util.logging.Logger.getLogger(Main.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
+            java.util.logging.Logger.getLogger(Main.class
+                    .getName()).log(java.util.logging.Level.SEVERE, null, ex);
         }
         //</editor-fold>
         //</editor-fold>
@@ -476,43 +494,44 @@ public class Main extends javax.swing.JFrame {
     private javax.swing.JButton usb_search;
     // End of variables declaration//GEN-END:variables
 
-    public void controltransfer(libusbone.UsbDevice device, StringBuilder sb) throws Exception {
+    public void controltransfer(StringBuilder sb) throws Exception {
         final int timeout = 5000;
         int usedStreamingParmsLen;
         int len;
         byte[] streamingParms = new byte[26];
         short wLength = (short) streamingParms.length;
-        // The e-com module produces errors with 48 bytes (UVC 1.5) instead of 26 bytes (UVC 1.1) streaming parameters! We could use the USB version info to determine the size of the streaming parameters.
+
+        streamingParms[0] = (byte) 0x01;
         streamingParms[2] = (byte) CAM_FORMAT_INDEX;                // bFormatIndex
         streamingParms[3] = (byte) CAM_FRAME_INDEX;                 // bFrameIndex
         packUsbInt(CAM_FRAME_INTERVAL, streamingParms, 4);         // dwFrameInterval
         log("Initial streaming parms: " + dumpStreamingParms(streamingParms));
-        sb.append("Initial streaming parms: " + dumpStreamingParms(streamingParms));
-        len = device.control_read(RT_CLASS_INTERFACE_SET, SET_CUR, (short) (VS_PROBE_CONTROL << 8), (short) CAM_STREAMING_INTERFACE_NUM, streamingParms, wLength, timeout);
+        sb.append("Initial streaming parms: " + dumpStreamingParms(streamingParms) + "\n");
+        len = openDevice.sendControlTransfer(RT_CLASS_INTERFACE_SET, SET_CUR, (short) (VS_PROBE_CONTROL << 8), (short) CAM_STREAMING_INTERFACE_NUM, streamingParms, wLength, timeout);
         if (len != streamingParms.length) {
             throw new Exception("Camera initialization failed. Streaming parms probe set failed, len=" + len + ".");
         }
         // for (int i = 0; i < streacontrol_readmingParms.length; i++) streamingParms[i] = 99;          // temp test
-        len = device.control_read((byte) RT_CLASS_INTERFACE_GET, (byte) GET_CUR, (short) (VS_PROBE_CONTROL << 8), (short) CAM_STREAMING_INTERFACE_NUM, streamingParms, (short) streamingParms.length, timeout);
+        len = openDevice.sendControlTransfer((byte) RT_CLASS_INTERFACE_GET, (byte) GET_CUR, (short) (VS_PROBE_CONTROL << 8), (short) CAM_STREAMING_INTERFACE_NUM, streamingParms, (short) streamingParms.length, timeout);
         if (len != streamingParms.length) {
             throw new Exception("Camera initialization failed. Streaming parms probe get failed, len=" + len + ".");
         }
         log("Probed streaming parms: " + dumpStreamingParms(streamingParms));
-        sb.append("Probed streaming parms: " + dumpStreamingParms(streamingParms));
+        sb.append("Probed streaming parms: " + dumpStreamingParms(streamingParms) + "\n");
 
         usedStreamingParmsLen = len;
         // log("Streaming parms length: " + usedStreamingParmsLen);
-        len = device.control_read(RT_CLASS_INTERFACE_SET, SET_CUR, (short) (VS_COMMIT_CONTROL << 8), (short) CAM_STREAMING_INTERFACE_NUM, streamingParms, (short) usedStreamingParmsLen, timeout);
+        len = openDevice.sendControlTransfer(RT_CLASS_INTERFACE_SET, SET_CUR, (short) (VS_COMMIT_CONTROL << 8), (short) CAM_STREAMING_INTERFACE_NUM, streamingParms, (short) usedStreamingParmsLen, timeout);
         if (len != streamingParms.length) {
             throw new Exception("Camera initialization failed. Streaming parms commit set failed.");
         }
         // for (int i = 0; i < streamingParms.length; i++) streamingParms[i] = 99;          // temp test
-        len = device.control_read((byte) RT_CLASS_INTERFACE_GET, (byte) GET_CUR, (short) (VS_COMMIT_CONTROL << 8), (short) CAM_STREAMING_INTERFACE_NUM, streamingParms, (short) usedStreamingParmsLen, timeout);
+        len = openDevice.sendControlTransfer((byte) RT_CLASS_INTERFACE_GET, (byte) GET_CUR, (short) (VS_COMMIT_CONTROL << 8), (short) CAM_STREAMING_INTERFACE_NUM, streamingParms, (short) usedStreamingParmsLen, timeout);
         if (len != streamingParms.length) {
             throw new Exception("Camera initialization failed. Streaming parms commit get failed.");
         }
         log("Final streaming parms: " + dumpStreamingParms(streamingParms));
-        sb.append("Final streaming parms: " + dumpStreamingParms(streamingParms));
+        sb.append("Final streaming parms: " + dumpStreamingParms(streamingParms) + "\n");
 
     }
 
@@ -590,26 +609,22 @@ public class Main extends javax.swing.JFrame {
 
     private void closeConnection() {
 
-        /*
-        if (camDevice != null) {
+        if (openDevice != null) {
             try {
-                camDevice.release_interface(CAM_STREAMING_INTERFACE_NUM);
-                camDevice.release_interface(CAM_STREAMING_INTERFACE_NUM);
-                camDevice.close();
-                camDevice = null;
-            } catch (LibUsbNotFoundException ex) {
-                Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
-            } catch (LibUsbBusyException ex) {
-                Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
-            } catch (LibUsbNoDeviceException ex) {
-                Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
-            } catch (LibUsbOtherException ex) {
-                Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
+                openDevice.release_interface(controlInterface);
+                openDevice.release_interface(streamInterface);
+                openDevice.close();
+                controlInterface = null;
+                streamInterface = null;
+                openDevice = null;
+
+            } catch (USBException ex) {
+                Logger.getLogger(Main.class
+                        .getName()).log(Level.SEVERE, null, ex);
             }
+
         }
-        us.cleanup();
-        us = null;
-         */
+        camDevice = null;
     }
 
     /*
@@ -740,40 +755,8 @@ public class Main extends javax.swing.JFrame {
         return s.toString();
     }
 
-    private static libusb_device_descriptor getDeviceDescriptor(
-            LibusboneLibrary lib, LibusboneLibrary.libusb_device libusbDevice) {
-        libusb_device_descriptor desc = new libusb_device_descriptor();
-        lib.libusb_get_device_descriptor(libusbDevice, desc);
-        //System.out.println(toHexString(desc.idVendor) + " "
-        //        + toHexString(desc.idProduct) + " num conf="
-        //        + desc.bNumConfigurations);
-        return desc;
-    }
-
-    private static LibusboneLibrary.libusb_context getContext(LibusboneLibrary lib) {
-        PointerByReference ctx = new PointerByReference();
-        //LibusboneLibrary.libusb_context[] bang = new LibusboneLibrary.libusb_context[0];
-        int r = lib.libusb_init(ctx);
-        System.out.println("r=" + r);
-        LibusboneLibrary.libusb_context libUsbContext = new LibusboneLibrary.libusb_context(ctx.getValue());
-        return libUsbContext;
-    }
-
-    private static LibusboneLibrary.libusb_device[] getDeviceList(LibusboneLibrary lib, LibusboneLibrary.libusb_context libUsbContext) {
-        PointerByReference deviceList = new PointerByReference();
-        int cnt = lib.libusb_get_device_list(libUsbContext, deviceList);
-        Pointer[] pointerArray = deviceList.getValue().getPointerArray(0, cnt);
-        System.out.println("repro");
-        LibusboneLibrary.libusb_device[] realList = new LibusboneLibrary.libusb_device[cnt];
-        for (int i = 0; i < cnt; ++i) {
-            realList[i] = new LibusboneLibrary.libusb_device(pointerArray[i]);
-        }
-        return realList;
-    }
-
     private static boolean isFoxlink(libusb_device_descriptor desc) {
         return desc.idVendor == FOXLINK_USB_VID
                 && desc.idProduct == FOXLINK_USB_PID;
     }
-
 }
