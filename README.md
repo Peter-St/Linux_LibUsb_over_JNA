@@ -5,7 +5,10 @@ It uses JNA to access an USB device on Linux via LibUsb
 
 You need to have the latest LibUsb installed on you Linux System
 
--- Slow Usb speed because of the Structure Class
+# The aim of the project is to perform an isochronous Transfer with an Usb device. Up to now, the Iso Transfer over Libusb accessed through Jna in Java is not correctly working.
+# Some bytes gets transfered and the transfer Status is "successfully", but the data is not valid from the stream.
+
+
 
 
 License
