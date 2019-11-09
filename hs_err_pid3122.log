@@ -1,0 +1,32 @@
+#
+# A fatal error has been detected by the Java Runtime Environment:
+#
+#  SIGSEGV (0xb) at pc=0x00007f9e058415bd, pid=3122, tid=3151
+#
+# JRE version: OpenJDK Runtime Environment (10.0.2+13) (build 10.0.2+13-Ubuntu-1ubuntu0.18.04.4)
+# Java VM: OpenJDK 64-Bit Server VM (10.0.2+13-Ubuntu-1ubuntu0.18.04.4, mixed mode, tiered, compressed oops, g1 gc, linux-amd64)
+# Problematic frame:
+# C  [libc.so.6+0x945bd]
+[timeout occurred during error reporting in step "printing problematic frame"] after 30 s.
+# Core dump will be written. Default location: Core dumps may be processed with "/usr/share/apport/apport %p %s %c %d %P" (or dumping to /home/peter/NetBeansProjects/Linux_LibUsb_over_JNA/core.3122)
+#
+# If you would like to submit a bug report, please visit:
+#   http://bugreport.java.com/bugreport/crash.jsp
+#
+
+---------------  S U M M A R Y ------------
+
+Command Line: humer.peter.jna_libusb_project.Main
+
+Host: 
+[timeout occurred during error reporting in step "printing summary machine and OS info"] after 30 s.
+Time: Tue Nov  5 18:09:50 2019 CET elapsed time: 102 seconds (0d 0h 1m 42s)
+
+---------------  T H R E A D  ---------------
+
+Current thread (0x00007f9dfc4ab000):  JavaThread "AWT-EventQueue-0" [_thread_in_Java, id=3151, stack(0x00007f9da4bf3000,0x00007f9da4cf4000)]
+
+Stack: [0x00007f9da4bf3000,0x00007f9da4cf4000],  sp=0x00007f9da4cea0d0,  free space=988k
+Native frames: (J=compiled Java code, A=aot compiled Java code, j=interpreted, Vv=VM code, C=native code)
+C  [libc.so.6+0x945bd]
+------ Timeout during error reporting after 120 s. ------

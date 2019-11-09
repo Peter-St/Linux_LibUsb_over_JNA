@@ -42,6 +42,11 @@ public class Request extends Libusb_transfer {
         this.MAX_PACKET_SIZE = maxSize;
         buffer = new Memory(maxPacketsPerRequest * maxSize);
     }
+    
+    public Request (int maxPacketsPerRequest, int maxSize) {
+        super(maxPacketsPerRequest);
+        
+    }
 
     public int initialize(Pointer devHandle, byte addr, int usercontext, Pointer callback) {
         if (queued) {

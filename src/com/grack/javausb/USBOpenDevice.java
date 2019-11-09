@@ -6,6 +6,7 @@ import java.io.OutputStream;
 import java.util.logging.Logger;
 
 import com.google.common.base.Preconditions;
+import com.grack.javausb.jna.libusb_transfer;
 import com.sun.jna.Pointer;
 
 public class USBOpenDevice implements AutoCloseable, Closeable {
@@ -165,7 +166,7 @@ public class USBOpenDevice implements AutoCloseable, Closeable {
         
     }
     
-    public Pointer allocateTransfer(int numPackets) throws USBException {
+    public libusb_transfer.ByReference allocateTransfer(int numPackets) throws USBException {
         return USBNative.alloc_transfer(numPackets);
     }
     
@@ -173,7 +174,7 @@ public class USBOpenDevice implements AutoCloseable, Closeable {
         return handle;
     }
     
-    public int submitTransfer(Pointer transfer) throws USBException {
+    public int submitTransfer(libusb_transfer.ByReference transfer) throws USBException {
         return USBNative.submitTransfer(transfer);
     }
     

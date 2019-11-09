@@ -15,21 +15,40 @@
  */
 package com.grack.javausb.jna;
 
+import com.google.common.collect.ImmutableList;
+import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
+import java.util.List;
 
 /**
  *
  * @author peter
  */
 @Structure.FieldOrder({"length", "actual_length", "status"})
-public class libusb_iso_packet_descriptor extends Structure {
+public class libusb_iso_packet_descriptor_structure extends Structure {
+
+    public static class ByReference extends libusb_iso_packet_descriptor_structure implements Structure.ByReference {
+    }
+
+    public libusb_iso_packet_descriptor_structure() {
+    }
+
+    public libusb_iso_packet_descriptor_structure(Pointer p) {
+        super(p);
+        read();
+    }
+
+    public libusb_iso_packet_descriptor_structure[] toArray(int size) {
+        return (libusb_iso_packet_descriptor_structure[]) super.toArray(size);
+    }
+
+    @Override
+    protected List<String> getFieldOrder() {
+        return ImmutableList.of("length", "actual_length", "status");
+    }
 
     public int length;
     public int actual_length;
     public int status;
 
-    @Override
-    public int fieldOffset(String field) {
-        return super.fieldOffset(field);
-    }
 }

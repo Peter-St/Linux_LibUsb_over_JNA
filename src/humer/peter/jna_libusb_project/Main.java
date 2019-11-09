@@ -22,10 +22,12 @@ import com.grack.javausb.USBEndpoint;
 import com.grack.javausb.USBException;
 import com.grack.javausb.USBInterface;
 import com.grack.javausb.USBInterfaceDescriptor;
+import com.grack.javausb.USBNative;
 import com.grack.javausb.USBOpenDevice;
 import com.grack.javausb.USBTransferType;
 import com.grack.javausb.jna.LibUSBXNative;
 import com.grack.javausb.jna.libusb_device_descriptor;
+import com.grack.javausb.jna.libusb_transfer;
 import com.sun.jna.Memory;
 import com.sun.jna.Pointer;
 import com.sun.jna.CallbackReference;
@@ -52,7 +54,7 @@ public class Main extends javax.swing.JFrame {
     public static int CAM_FRAME_INTERVAL = 666666; // 333333 YUV = 30 fps // 666666 YUV = 15 fps
     public static int PACKETS_PER_REQUEST = 4;
     public static int MAX_PACKET_SIZE = 3072;
-    public static int ACTIVE_URBS = 4;
+    public static int ACTIVE_URBS = 8;
     public static int ALT_SETTING = 7; // 7 = 3*1024 bytes packet size // 6 = 3*896 // 5 = 2*1024 // 4 = 2*768 // 3 = 1x 1024 // 2 = 1x 512 // 1 = 128 //
     // ADDITIONAL CONFIGURATION
 
@@ -226,7 +228,7 @@ public class Main extends javax.swing.JFrame {
 
         try {
             USB usb = new USB();
-            ctx = usb.getContext();
+            //ctx = usb.getContext();
             //log("Context = \n" + ctx.toString());
             System.out.printf("%4s    %10s     %10s\n",
                     "Bus/Address",
@@ -295,8 +297,9 @@ public class Main extends javax.swing.JFrame {
         for (USBConfiguration config : camDevice.configurations()) {
 
             try {
-                openDevice = camDevice.open_device_with_vid_pid();
                 //openDevice = camDevice.open();
+                openDevice = camDevice.open_device_with_vid_pid();
+
                 for (USBInterface iface : config.interfaces()) {
                     System.out.println(iface);
                     //sb.append(iface);
@@ -373,6 +376,74 @@ public class Main extends javax.swing.JFrame {
             log("Altsetting setted to: " + ALT_SETTING + "\n  -- Try to allocate the LibUsb Transfers.");
             log("  -- Starting with the submittion of the UsbRequestBlocks.");
 
+            signal = 0;
+            stopTransmission = false;
+
+            for (i = 0; i < ACTIVE_URBS; i++) {
+
+                libusb_transfer.ByReference xfer;
+
+                xfer = new libusb_transfer.ByReference();
+
+                xfer = openDevice.allocateTransfer(PACKETS_PER_REQUEST);
+
+                //xfer.getPointer();
+                Memory buffer;
+                int bufSize = MAX_PACKET_SIZE * PACKETS_PER_REQUEST;
+
+                buffer = new Memory(bufSize);
+
+                //Pointer urbPointer = ;
+                //req.setUrbPointer(camDevice.allocateTransfer(PACKETS_PER_REQUEST));
+                xfer.buffer = buffer;
+                xfer.callback = setTheCallbackFunction();
+                xfer.dev_handle = openDevice.getDevHandle();
+                xfer.endpoint = endpointadress;
+                xfer.length = bufSize;
+                xfer.type = USBNative.libusb_transfer_type.LIBUSB_TRANSFER_TYPE_ISOCHRONOUS.getValue();
+                xfer.timeout = 1000;
+                xfer.user_data = null;
+                xfer.num_iso_packets = PACKETS_PER_REQUEST;
+
+                for (int j = 0; j < PACKETS_PER_REQUEST; j++) {
+                    xfer.iso_packet_desc[j].length = MAX_PACKET_SIZE;
+                    xfer.iso_packet_desc[j].status = -1;
+                }
+                //int rc = openDevice.submitTransfer(null);
+                int rc = openDevice.submitTransfer(xfer);
+                if (rc == 0) {
+                    logSucess("Submitted UrbBlock Nr." + i);
+                } else if (rc < 0) {
+                    logError("Failed to Submit UrbBlock Nr. " + i);
+                    throw new IOException();
+                }
+                //log("The Request size is " + req.getLibusbSize());
+
+            }
+
+            log("  -- All LibUsb Transfers sucessful submitted.");
+            log("  -- Starting handle the events.");
+
+            new java.util.Timer().schedule(
+                    new java.util.TimerTask() {
+                @Override
+                public void run() {
+                    stopTransmission = true;
+                }
+            },
+                    5000
+            );
+
+            do {
+                openDevice.handle_events(camDevice.getContext());
+                signal++;
+                if (stopTransmission) {
+
+                    break;
+                }
+            } while (signal < 1000);
+
+            /*
             xfers = new ArrayList<>(ACTIVE_URBS);
             signal = 0;
             stopTransmission = false;
@@ -421,7 +492,8 @@ public class Main extends javax.swing.JFrame {
                     break;
                 }
             } while (signal < 1000);
-
+            
+             */
         } catch (USBException ex) {
             Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
         } catch (IOException ex) {
@@ -432,12 +504,12 @@ public class Main extends javax.swing.JFrame {
         sb.append("requests=" + requestCnt + " packetCnt=" + packetCnt + " packetErrorCnt=" + packetErrorCnt + " packet0Cnt=" + packet0Cnt + ", packet12Cnt=" + packet12Cnt + ", packetDataCnt=" + packetDataCnt + " packetHdr8cCnt=" + packetHdr8Ccnt + " frameCnt=" + frameCnt);
         for (String s : logArray) {
             System.out.println(s);
-            sb.append(s);
+            //sb.append(s);
         }
 
-        jTextArea1.setText(sb.toString());
-        closeConnection();
+        jTextArea1.setText("Transfer sucessful --> look at your Output window (log)");
 
+        closeConnection();
         log("  -- Exit.");
     }//GEN-LAST:event_startIsoTransferActionPerformed
 
@@ -629,119 +701,6 @@ public class Main extends javax.swing.JFrame {
         xfers = null;
     }
 
-    /*
-    private LibUsb.Libusb_transfer_cb_fn setTheCallbackFunction() {
-        
-        /*
-        LibUsb.Libusb_transfer_cb_fn callback = new LibUsb.Libusb_transfer_cb_fn() {
-            @Override
-            public void invoke(Pointer transfer) {
-
-                /*
-                Pointer errorname = camDevice.errorName(LibUsb.Libusb_transfer.getTransferStatus(transfer));
-                //log ("Transfer Status = " + LibUsb.Libusb_transfer.getTransferStatus(transfer) + "  /  " + errorname.getString(0));
-                if (errorname.getString(0) != libusb_transfer_status.LIBUSB_TRANSFER_COMPLETED.toString()) {
-                    logError("ERROR  --  " + errorname.getString(0));
-                    Pointer error = camDevice.strError(errorname.getString(0));
-
-                    logError("Detail = " + error.getString(0));
-                    //throw new IllegalStateException("!! Submit xfer failed !! ");
-                }
-                //log("signal = " + signal++);
-                int urbNdx;
-
-                urbNdx = LibUsb.Libusb_transfer.getUserContext(transfer);
-                log("urbNdx = " + urbNdx);
-
-                Request xfer = xfers.get(urbNdx);
-                xfer.setNativeLibusbAddr(transfer);
-                //log("UrbLength = " + xfer.getTransferLength());
-                //log("UrbActualLength = " + xfer.getTransferActualLength());
-
-                //System.out.println(errorname.getString(0));
-                for (int packetNo = 0; packetNo < xfer.getNumberOfPackets(); packetNo++) {
-                    //log("Packet " + packetNo + " status = " + xfer.getPacketStatus(packetNo));
-
-                    if (xfer.getPacketStatus(packetNo) == LIBUSB_TRANSFER_COMPLETED) {
-                        packetCnt++;
-
-                        int packetLen = xfer.getPacketActualLength(packetNo);
-                        if (packetLen == 0) {
-                            packet0Cnt++;
-                        }
-                        if (packetLen == 12) {
-                            packet12Cnt++;
-                        }
-                        if (packetLen == 0) {
-                            continue;
-                        }
-                        StringBuilder logEntry = new StringBuilder(requestCnt + "/" + packetNo + " len=" + packetLen);
-                        if (packetLen > 0) {
-                            if (packetLen > MAX_PACKET_SIZE) {
-                                //throw new Exception("packetLen > maxPacketSize");
-                            }
-                            byte[] data = new byte[MAX_PACKET_SIZE];
-
-                            xfer.getPacketDataRequest(packetNo, data, packetLen);
-
-                            //transfer.buffer.read(packetNo * MAX_PACKET_SIZE, data, 0, packetLen);
-                            logEntry.append(" data=" + hexDump(data, Math.min(32, packetLen)));
-                            int headerLen = data[0] & 0xff;
-
-                            try {
-                                if (headerLen < 2 || headerLen > packetLen) {
-                                    //    skipFrames = 1;
-                                }
-                            } catch (Exception e) {
-                                System.out.println("Invalid payload header length.");
-                            }
-                            int headerFlags = data[1] & 0xff;
-                            if (headerFlags == 0x8c) {
-                                packetHdr8Ccnt++;
-                            }
-                            // logEntry.append(" hdrLen=" + headerLen + " hdr[1]=0x" + Integer.toHexString(headerFlags));
-                            int dataLen = packetLen - headerLen;
-                            if (dataLen > 0) {
-                                packetDataCnt++;
-                            }
-                            frameLen += dataLen;
-                            if ((headerFlags & 0x40) != 0) {
-                                logEntry.append(" *** Error ***");
-                                packetErrorCnt++;
-                            }
-                            if ((headerFlags & 2) != 0) {
-                                logEntry.append(" EOF frameLen=" + frameLen);
-                                frameCnt++;
-                                frameLen = 0;
-                            }
-                        }
-                        logArray.add(logEntry.toString());
-
-                    }
-
-                }
-
-
-                requestCnt++;
-
-                if (!stopTransmission && errorname.getString(0) == libusb_transfer_status.LIBUSB_TRANSFER_COMPLETED.toString()) {
-                    int rc = camDevice.submitTransfer(transfer);
-                    if (rc != 0) {
-                        logError("  --  The return of the Transfer is = " + rc + "  -  " + libusb_error.fromNative((byte) rc));
-                        throw new IllegalStateException("!! Submit xfer failed !! " + Native.POINTER_SIZE);
-                    }
-                }
-                 
-            }
-        };
-
-        return callback;
-        
-        
-        
-        return null;
-    }
-     */
     private static String hexDump(byte[] buf, int len) {
         StringBuilder s = new StringBuilder(len * 3);
         for (int p = 0; p < len; p++) {
@@ -766,28 +725,15 @@ public class Main extends javax.swing.JFrame {
         LibUSBXNative.Libusb_transfer_cb_fn callback = new LibUSBXNative.Libusb_transfer_cb_fn() {
 
             @Override
-            public void invoke(Pointer transfer) {
+            public void invoke(libusb_transfer.ByReference transfer) {
 
-                //log("PosUsercontext = " + position_of_libusb_transfer_usercontext);
-                int urbNdx = transfer.getByte(position_of_libusb_transfer_usercontext);
-                log("urbNdx = " + urbNdx);
-                Request xfer = xfers.get(urbNdx);
-                log("Status = " + xfer.getTransferStatus());
-                log("Transfer length = " + xfer.getTransferLength());
-                log("Transfer length = " + xfer.getTransferActualLength());
-                if (xfer.getTransferActualLength() != 0) {
-                    try {
-                        throw new Exception("packetLen > maxPacketSize");
-                    } catch (Exception ex) {
-                        Logger.getLogger(Main.class.getName()).log(Level.SEVERE, null, ex);
-                    }
-                }
-                
+                //log("signal = " + signal++);
+                //log("Transfer Status = " + transfer.status);
 
-                for (int packetNo = 0; packetNo < xfer.getNumberOfPackets(); packetNo++) {
-                    if (xfer.getPacketStatus(packetNo) == LIBUSB_TRANSFER_COMPLETED) {
+                for (int packetNo = 0; packetNo < transfer.num_iso_packets; packetNo++) {
+                    if (transfer.iso_packet_desc[packetNo].status == LIBUSB_TRANSFER_COMPLETED) {
                         packetCnt++;
-                        int packetLen = xfer.getPacketLength(packetNo);
+                        int packetLen = transfer.iso_packet_desc[packetNo].actual_length;
                         if (packetLen == 0) {
                             packet0Cnt++;
                         }
@@ -804,7 +750,7 @@ public class Main extends javax.swing.JFrame {
                             }
                             byte[] data = new byte[MAX_PACKET_SIZE];
 
-                            xfer.getPacketDataRequest(packetNo, data, packetLen);
+                            transfer.buffer.read(packetNo * MAX_PACKET_SIZE, data, 0, packetLen);
 
                             logEntry.append(" data=" + hexDump(data, Math.min(32, packetLen)));
                             int headerLen = data[0] & 0xff;
@@ -834,6 +780,7 @@ public class Main extends javax.swing.JFrame {
                                 logEntry.append(" EOF frameLen=" + frameLen);
                                 frameCnt++;
                                 frameLen = 0;
+                                if(frameCnt == 40) stopTransmission = true;
                             }
                         }
                         logArray.add(logEntry.toString());
@@ -841,7 +788,6 @@ public class Main extends javax.swing.JFrame {
                     }
 
                 }
-                requestCnt++;
 
                 try {
 

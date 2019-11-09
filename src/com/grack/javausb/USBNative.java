@@ -5,6 +5,7 @@ import java.nio.ByteBuffer;
 import com.grack.javausb.jna.LibUSBXNative;
 import com.grack.javausb.jna.libusb_config_descriptor;
 import com.grack.javausb.jna.libusb_device_descriptor;
+import com.grack.javausb.jna.libusb_transfer;
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.IntByReference;
@@ -121,7 +122,7 @@ public class USBNative {
                 data, wLength, timeout);
     }
 
-    static Pointer alloc_transfer(int numPackets) throws USBException {
+    static libusb_transfer.ByReference alloc_transfer(int numPackets) throws USBException {
 
         return USB.libusb_alloc_transfer(numPackets);
     }
@@ -145,7 +146,7 @@ public class USBNative {
         return pointers;
     }
 
-    static int submitTransfer(Pointer transfer) {
+    static int submitTransfer(libusb_transfer.ByReference transfer) {
         return USB.libusb_submit_transfer(transfer);
     }
 

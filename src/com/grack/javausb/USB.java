@@ -20,9 +20,9 @@ public class USB {
 
     public USB() throws USBException {
         finalizationThread = new FinalizationThread();
-        finalizationThread.start();
+        //finalizationThread.start();
         this.ctx = USBNative.openLibrary();
-        finalizationThread.track(this, new LibUSBCleanupFinalizer(ctx));
+        //finalizationThread.track(this, new LibUSBCleanupFinalizer(ctx));
         
 
         logger.info("Initialized LibUSB JNA wrapper");
@@ -39,8 +39,8 @@ public class USB {
         @Override
         public void cleanup() {
             // Free the library context
-            logger.info("Freeing libusb");
-            USBNative.freeLibrary(ctx);
+            //logger.info("Freeing libusb");
+            //USBNative.freeLibrary(ctx);
         }
     }
 

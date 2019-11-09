@@ -9,6 +9,7 @@ import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import com.sun.jna.ptr.IntByReference;
 import com.sun.jna.ptr.PointerByReference;
+import java.nio.ByteOrder;
 
 public interface LibUSBXNative extends Library {
 
@@ -98,9 +99,9 @@ public interface LibUSBXNative extends Library {
     // *dev, uint8_t desc_index, unsigned char *data, int length);
     int libusb_get_string_descriptor_ascii(Pointer dev, byte desc_index, byte[] data, int length);
 
-    Pointer libusb_alloc_transfer(int iso_packets);
+    libusb_transfer.ByReference libusb_alloc_transfer(int iso_packets);
     
-    int libusb_submit_transfer(Pointer transferPointer);
+    int libusb_submit_transfer(libusb_transfer.ByReference transferPointer);
     
     int libusb_handle_events(Pointer ctx);
     
@@ -112,7 +113,7 @@ public interface LibUSBXNative extends Library {
 
     interface Libusb_transfer_cb_fn extends Callback {
 
-        void invoke(Pointer transfer);
+        void invoke(libusb_transfer.ByReference transfer);
     }
 
     public static class Libusb_transfer {
@@ -167,7 +168,7 @@ public interface LibUSBXNative extends Library {
 
         }
 
-        //private ByteBuffer urbBuf;
+        private ByteBuffer urbBuf;
         private Pointer libusbBuf;
         private static int maxPackets;
         private static int MAX_PACKET_SIZE;
@@ -177,9 +178,9 @@ public interface LibUSBXNative extends Library {
             this.maxPackets = maxPackets;
             libusbSize = libusbBaseSize + maxPackets * packetDescSize;
 
-            //libusbBuf = ByteBuffer.allocateDirect(libusbSize);
-            //libusbBuf.order(ByteOrder.nativeOrder());
-            //libusbBufPointer = Native.getDirectBufferPointer(libusbBuf);
+            urbBuf = ByteBuffer.allocateDirect(libusbSize);
+            urbBuf.order(ByteOrder.nativeOrder());
+            libusbBuf = Native.getDirectBufferPointer(urbBuf);
         }
 
         public Libusb_transfer(int maxPackets, int maxPacketSize, Pointer nativePointer) {
